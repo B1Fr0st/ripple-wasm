@@ -1,0 +1,40 @@
+[package]
+name = "asm-sim-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary     = { version = "1", features = ["derive"] }
+asm-sim       = { path = ".." }
+
+# Each fuzz target is a separate binary.
+# Run with: cargo fuzz run <name>
+
+[[bin]]
+name = "fuzz_source"
+path = "fuzz_targets/fuzz_source.rs"
+test = false
+doc  = false
+
+[[bin]]
+name = "fuzz_lexer"
+path = "fuzz_targets/fuzz_lexer.rs"
+test = false
+doc  = false
+
+[[bin]]
+name = "fuzz_executor"
+path = "fuzz_targets/fuzz_executor.rs"
+test = false
+doc  = false
+
+# libFuzzer needs these profile settings to work correctly.
+[profile.release]
+debug     = true    # keep symbols for crash reports
+opt-level = 3
+overflow-checks = false   # let the sanitizer catch these instead

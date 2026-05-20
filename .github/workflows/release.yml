@@ -1,0 +1,113 @@
+name: Release WASM
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Nightly is required by edition = "2024" and wasm-bindgen macros.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+
+      # Cache compiled dependencies — keyed on Cargo.lock so a lockfile
+      # change invalidates the cache and rebuilds from scratch.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # wasm-pack is cached separately; only reinstalled when the runner OS
+      # changes (which is rare).
+      - uses: actions/cache@v4
+        id: cache-wasm-pack
+        with:
+          path: ~/.cargo/bin/wasm-pack
+          key: ${{ runner.os }}-wasm-pack
+
+      - name: Install wasm-pack
+        if: steps.cache-wasm-pack.outputs.cache-hit != 'true'
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      # Run the wasm-bindgen-test suite in Node.js.
+      # Fuzz runs are omitted — they need hours and belong in a scheduled workflow.
+      - name: Test
+        run: wasm-pack test --node
+
+      - name: Build WASM
+        run: wasm-pack build --target web --out-dir pkg --release
+
+      # Zip only the files a consumer actually needs; skip the .d.ts sidecar
+      # for the raw wasm (it's internal wasm-bindgen plumbing).
+      - name: Package
+        run: |
+          zip -j asm-sim-wasm.zip \
+            pkg/asm_sim.js \
+            pkg/asm_sim_bg.wasm \
+            pkg/asm_sim.d.ts \
+            pkg/package.json
+
+      # ── Rolling "latest" release ────────────────────────────────────────
+      # Every push to main overwrites the previous "latest" release so there
+      # is always one canonical place to grab the current build.
+      - name: Publish rolling release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest
+          name: Latest
+          prerelease: true
+          allowUpdates: true
+          removeArtifacts: true
+          body: |
+            Automated build from [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+
+            ### Usage
+            ```js
+            import init, { Simulator } from './asm_sim.js';
+            await init();
+            const sim = new Simulator(source);
+            sim.run();
+            console.log(sim.take_stdout());
+            ```
+
+            ### Files
+            | File | Description |
+            |---|---|
+            | `asm_sim.js` | ES module entry point + JS glue |
+            | `asm_sim_bg.wasm` | Compiled WASM binary |
+            | `asm_sim.d.ts` | TypeScript type declarations |
+            | `asm-sim-wasm.zip` | All of the above as a zip |
+          artifacts: >
+            asm-sim-wasm.zip,
+            pkg/asm_sim.js,
+            pkg/asm_sim_bg.wasm,
+            pkg/asm_sim.d.ts
+
+      # ── Versioned release ───────────────────────────────────────────────
+      # Pushing a tag like v1.2.3 creates a proper release. The tag message
+      # becomes the release body; leave it empty to get a generic header.
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1
+        with:
+          makeLatest: true
+          artifacts: >
+            asm-sim-wasm.zip,
+            pkg/asm_sim.js,
+            pkg/asm_sim_bg.wasm,
+            pkg/asm_sim.d.ts

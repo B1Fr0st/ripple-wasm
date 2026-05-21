@@ -25,7 +25,12 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {
-        Lexer { src: src.as_bytes(), pos: 0, line: 1, col: 1 }
+        Lexer {
+            src: src.as_bytes(),
+            pos: 0,
+            line: 1,
+            col: 1,
+        }
     }
 
     fn peek(&self) -> Option<u8> {
@@ -60,7 +65,9 @@ impl<'a> Lexer<'a> {
 
     fn skip_comment(&mut self) {
         while let Some(b) = self.peek() {
-            if b == b'\n' { break; }
+            if b == b'\n' {
+                break;
+            }
             self.advance();
         }
     }
@@ -88,35 +95,50 @@ impl<'a> Lexer<'a> {
             false
         };
 
-        let (radix, s) = if self.peek() == Some(b'0') && matches!(self.peek2(), Some(b'x') | Some(b'X')) {
-            self.advance(); self.advance();
-            let s = self.read_digits(|b| b.is_ascii_hexdigit());
-            (16u32, s)
-        } else if self.peek() == Some(b'0') && matches!(self.peek2(), Some(b'b') | Some(b'B')) {
-            self.advance(); self.advance();
-            let s = self.read_digits(|b| b == b'0' || b == b'1');
-            (2u32, s)
-        } else if self.peek() == Some(b'0') && matches!(self.peek2(), Some(b'o') | Some(b'O')) {
-            self.advance(); self.advance();
-            let s = self.read_digits(|b| (b'0'..=b'7').contains(&b));
-            (8u32, s)
-        } else {
-            let s = self.read_digits(|b| b.is_ascii_digit());
-            (10u32, s)
-        };
+        let (radix, s) =
+            if self.peek() == Some(b'0') && matches!(self.peek2(), Some(b'x') | Some(b'X')) {
+                self.advance();
+                self.advance();
+                let s = self.read_digits(|b| b.is_ascii_hexdigit());
+                (16u32, s)
+            } else if self.peek() == Some(b'0') && matches!(self.peek2(), Some(b'b') | Some(b'B')) {
+                self.advance();
+                self.advance();
+                let s = self.read_digits(|b| b == b'0' || b == b'1');
+                (2u32, s)
+            } else if self.peek() == Some(b'0') && matches!(self.peek2(), Some(b'o') | Some(b'O')) {
+                self.advance();
+                self.advance();
+                let s = self.read_digits(|b| (b'0'..=b'7').contains(&b));
+                (8u32, s)
+            } else {
+                let s = self.read_digits(|b| b.is_ascii_digit());
+                (10u32, s)
+            };
 
         if s.is_empty() {
-            return Err(SimError::Lex { line, col, msg: "expected digits".into() });
+            return Err(SimError::Lex {
+                line,
+                col,
+                msg: "expected digits".into(),
+            });
         }
 
         // For hex/binary/octal, allow full u64 range (e.g. 0xffffffffffffffff = -1i64).
         let val: i64 = if !negative && radix != 10 {
             u64::from_str_radix(&s, radix)
                 .map(|u| u as i64)
-                .map_err(|_| SimError::Lex { line, col, msg: format!("number overflow: {}", s) })?
+                .map_err(|_| SimError::Lex {
+                    line,
+                    col,
+                    msg: format!("number overflow: {}", s),
+                })?
         } else {
-            i64::from_str_radix(&s, radix)
-                .map_err(|_| SimError::Lex { line, col, msg: format!("number overflow: {}", s) })?
+            i64::from_str_radix(&s, radix).map_err(|_| SimError::Lex {
+                line,
+                col,
+                msg: format!("number overflow: {}", s),
+            })?
         };
 
         Ok(if negative { -val } else { val })
@@ -143,20 +165,30 @@ impl<'a> Lexer<'a> {
         let mut bytes = Vec::new();
         loop {
             match self.advance() {
-                None => return Err(SimError::Lex { line, col, msg: "unterminated string".into() }),
-                Some(b'"') => break,
-                Some(b'\\') => {
-                    match self.advance() {
-                        Some(b'n')  => bytes.push(b'\n'),
-                        Some(b'r')  => bytes.push(b'\r'),
-                        Some(b't')  => bytes.push(b'\t'),
-                        Some(b'0')  => bytes.push(0),
-                        Some(b'\\') => bytes.push(b'\\'),
-                        Some(b'"')  => bytes.push(b'"'),
-                        Some(c) => bytes.push(c),
-                        None => return Err(SimError::Lex { line, col, msg: "unterminated escape".into() }),
-                    }
+                None => {
+                    return Err(SimError::Lex {
+                        line,
+                        col,
+                        msg: "unterminated string".into(),
+                    });
                 }
+                Some(b'"') => break,
+                Some(b'\\') => match self.advance() {
+                    Some(b'n') => bytes.push(b'\n'),
+                    Some(b'r') => bytes.push(b'\r'),
+                    Some(b't') => bytes.push(b'\t'),
+                    Some(b'0') => bytes.push(0),
+                    Some(b'\\') => bytes.push(b'\\'),
+                    Some(b'"') => bytes.push(b'"'),
+                    Some(c) => bytes.push(c),
+                    None => {
+                        return Err(SimError::Lex {
+                            line,
+                            col,
+                            msg: "unterminated escape".into(),
+                        });
+                    }
+                },
                 Some(c) => bytes.push(c),
             }
         }
@@ -169,15 +201,39 @@ impl<'a> Lexer<'a> {
             self.skip_whitespace();
             let line = self.line;
             match self.peek() {
-                None => { tokens.push((Token::Eof, line)); break; }
-                Some(b'\n') => { self.advance(); tokens.push((Token::Newline, line)); }
+                None => {
+                    tokens.push((Token::Eof, line));
+                    break;
+                }
+                Some(b'\n') => {
+                    self.advance();
+                    tokens.push((Token::Newline, line));
+                }
                 Some(b';') | Some(b'#') => self.skip_comment(),
-                Some(b':') => { self.advance(); tokens.push((Token::Colon, line)); }
-                Some(b',') => { self.advance(); tokens.push((Token::Comma, line)); }
-                Some(b'[') => { self.advance(); tokens.push((Token::LBracket, line)); }
-                Some(b']') => { self.advance(); tokens.push((Token::RBracket, line)); }
-                Some(b'+') => { self.advance(); tokens.push((Token::Plus, line)); }
-                Some(b'*') => { self.advance(); tokens.push((Token::Star, line)); }
+                Some(b':') => {
+                    self.advance();
+                    tokens.push((Token::Colon, line));
+                }
+                Some(b',') => {
+                    self.advance();
+                    tokens.push((Token::Comma, line));
+                }
+                Some(b'[') => {
+                    self.advance();
+                    tokens.push((Token::LBracket, line));
+                }
+                Some(b']') => {
+                    self.advance();
+                    tokens.push((Token::RBracket, line));
+                }
+                Some(b'+') => {
+                    self.advance();
+                    tokens.push((Token::Plus, line));
+                }
+                Some(b'*') => {
+                    self.advance();
+                    tokens.push((Token::Star, line));
+                }
                 Some(b'"') => {
                     let bytes = self.read_string()?;
                     tokens.push((Token::StringLit(bytes), line));

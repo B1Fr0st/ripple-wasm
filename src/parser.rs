@@ -55,8 +55,8 @@ impl Parser {
             "rdi" => (Register::Rdi, RegWidth::Qword),
             "rsp" => (Register::Rsp, RegWidth::Qword),
             "rbp" => (Register::Rbp, RegWidth::Qword),
-            "r8"  => (Register::R8,  RegWidth::Qword),
-            "r9"  => (Register::R9,  RegWidth::Qword),
+            "r8" => (Register::R8, RegWidth::Qword),
+            "r9" => (Register::R9, RegWidth::Qword),
             "r10" => (Register::R10, RegWidth::Qword),
             "r11" => (Register::R11, RegWidth::Qword),
             "r12" => (Register::R12, RegWidth::Qword),
@@ -71,44 +71,44 @@ impl Parser {
             "edi" => (Register::Rdi, RegWidth::Dword),
             "esp" => (Register::Rsp, RegWidth::Dword),
             "ebp" => (Register::Rbp, RegWidth::Dword),
-            "r8d"  => (Register::R8,  RegWidth::Dword),
-            "r9d"  => (Register::R9,  RegWidth::Dword),
+            "r8d" => (Register::R8, RegWidth::Dword),
+            "r9d" => (Register::R9, RegWidth::Dword),
             "r10d" => (Register::R10, RegWidth::Dword),
             "r11d" => (Register::R11, RegWidth::Dword),
             "r12d" => (Register::R12, RegWidth::Dword),
             "r13d" => (Register::R13, RegWidth::Dword),
             "r14d" => (Register::R14, RegWidth::Dword),
             "r15d" => (Register::R15, RegWidth::Dword),
-            "ax"  => (Register::Rax, RegWidth::Word),
-            "bx"  => (Register::Rbx, RegWidth::Word),
-            "cx"  => (Register::Rcx, RegWidth::Word),
-            "dx"  => (Register::Rdx, RegWidth::Word),
-            "si"  => (Register::Rsi, RegWidth::Word),
-            "di"  => (Register::Rdi, RegWidth::Word),
-            "sp"  => (Register::Rsp, RegWidth::Word),
-            "bp"  => (Register::Rbp, RegWidth::Word),
-            "r8w"  => (Register::R8,  RegWidth::Word),
-            "r9w"  => (Register::R9,  RegWidth::Word),
+            "ax" => (Register::Rax, RegWidth::Word),
+            "bx" => (Register::Rbx, RegWidth::Word),
+            "cx" => (Register::Rcx, RegWidth::Word),
+            "dx" => (Register::Rdx, RegWidth::Word),
+            "si" => (Register::Rsi, RegWidth::Word),
+            "di" => (Register::Rdi, RegWidth::Word),
+            "sp" => (Register::Rsp, RegWidth::Word),
+            "bp" => (Register::Rbp, RegWidth::Word),
+            "r8w" => (Register::R8, RegWidth::Word),
+            "r9w" => (Register::R9, RegWidth::Word),
             "r10w" => (Register::R10, RegWidth::Word),
             "r11w" => (Register::R11, RegWidth::Word),
             "r12w" => (Register::R12, RegWidth::Word),
             "r13w" => (Register::R13, RegWidth::Word),
             "r14w" => (Register::R14, RegWidth::Word),
             "r15w" => (Register::R15, RegWidth::Word),
-            "al"  => (Register::Rax, RegWidth::Byte),
-            "bl"  => (Register::Rbx, RegWidth::Byte),
-            "cl"  => (Register::Rcx, RegWidth::Byte),
-            "dl"  => (Register::Rdx, RegWidth::Byte),
+            "al" => (Register::Rax, RegWidth::Byte),
+            "bl" => (Register::Rbx, RegWidth::Byte),
+            "cl" => (Register::Rcx, RegWidth::Byte),
+            "dl" => (Register::Rdx, RegWidth::Byte),
             "sil" => (Register::Rsi, RegWidth::Byte),
             "dil" => (Register::Rdi, RegWidth::Byte),
             "spl" => (Register::Rsp, RegWidth::Byte),
             "bpl" => (Register::Rbp, RegWidth::Byte),
-            "ah"  => (Register::Rax, RegWidth::ByteHi),
-            "bh"  => (Register::Rbx, RegWidth::ByteHi),
-            "ch"  => (Register::Rcx, RegWidth::ByteHi),
-            "dh"  => (Register::Rdx, RegWidth::ByteHi),
-            "r8b"  => (Register::R8,  RegWidth::Byte),
-            "r9b"  => (Register::R9,  RegWidth::Byte),
+            "ah" => (Register::Rax, RegWidth::ByteHi),
+            "bh" => (Register::Rbx, RegWidth::ByteHi),
+            "ch" => (Register::Rcx, RegWidth::ByteHi),
+            "dh" => (Register::Rdx, RegWidth::ByteHi),
+            "r8b" => (Register::R8, RegWidth::Byte),
+            "r9b" => (Register::R9, RegWidth::Byte),
             "r10b" => (Register::R10, RegWidth::Byte),
             "r11b" => (Register::R11, RegWidth::Byte),
             "r12b" => (Register::R12, RegWidth::Byte),
@@ -122,52 +122,52 @@ impl Parser {
 
     fn parse_op(s: &str) -> Option<Op> {
         match s.to_ascii_lowercase().as_str() {
-            "mov"    => Some(Op::Mov),
-            "push"   => Some(Op::Push),
-            "pop"    => Some(Op::Pop),
-            "lea"    => Some(Op::Lea),
-            "xchg"   => Some(Op::Xchg),
-            "movzx"  => Some(Op::Movzx),
-            "movsx"  => Some(Op::Movsx),
-            "add"    => Some(Op::Add),
-            "sub"    => Some(Op::Sub),
-            "mul"    => Some(Op::Mul),
-            "imul"   => Some(Op::Imul),
-            "div"    => Some(Op::Div),
-            "idiv"   => Some(Op::Idiv),
-            "inc"    => Some(Op::Inc),
-            "dec"    => Some(Op::Dec),
-            "neg"    => Some(Op::Neg),
-            "adc"    => Some(Op::Adc),
-            "sbb"    => Some(Op::Sbb),
-            "and"    => Some(Op::And),
-            "or"     => Some(Op::Or),
-            "xor"    => Some(Op::Xor),
-            "not"    => Some(Op::Not),
-            "shl"    | "sal" => Some(Op::Shl),
-            "shr"    => Some(Op::Shr),
-            "sar"    => Some(Op::Sar),
-            "rol"    => Some(Op::Rol),
-            "ror"    => Some(Op::Ror),
-            "cmp"    => Some(Op::Cmp),
-            "test"   => Some(Op::Test),
-            "jmp"    => Some(Op::Jmp),
-            "call"   => Some(Op::Call),
-            "ret"    => Some(Op::Ret),
-            "loop"   => Some(Op::Loop),
-            "je"  | "jz"   => Some(Op::Je),
-            "jne" | "jnz"  => Some(Op::Jne),
-            "jl"  | "jnge" => Some(Op::Jl),
-            "jle" | "jng"  => Some(Op::Jle),
-            "jg"  | "jnle" => Some(Op::Jg),
-            "jge" | "jnl"  => Some(Op::Jge),
-            "js"           => Some(Op::Js),
-            "jns"          => Some(Op::Jns),
-            "jc"  | "jb"   => Some(Op::Jc),
-            "jnc" | "jae"  => Some(Op::Jnc),
-            "jo"           => Some(Op::Jo),
-            "jno"          => Some(Op::Jno),
-            "syscall"      => Some(Op::Syscall),
+            "mov" => Some(Op::Mov),
+            "push" => Some(Op::Push),
+            "pop" => Some(Op::Pop),
+            "lea" => Some(Op::Lea),
+            "xchg" => Some(Op::Xchg),
+            "movzx" => Some(Op::Movzx),
+            "movsx" => Some(Op::Movsx),
+            "add" => Some(Op::Add),
+            "sub" => Some(Op::Sub),
+            "mul" => Some(Op::Mul),
+            "imul" => Some(Op::Imul),
+            "div" => Some(Op::Div),
+            "idiv" => Some(Op::Idiv),
+            "inc" => Some(Op::Inc),
+            "dec" => Some(Op::Dec),
+            "neg" => Some(Op::Neg),
+            "adc" => Some(Op::Adc),
+            "sbb" => Some(Op::Sbb),
+            "and" => Some(Op::And),
+            "or" => Some(Op::Or),
+            "xor" => Some(Op::Xor),
+            "not" => Some(Op::Not),
+            "shl" | "sal" => Some(Op::Shl),
+            "shr" => Some(Op::Shr),
+            "sar" => Some(Op::Sar),
+            "rol" => Some(Op::Rol),
+            "ror" => Some(Op::Ror),
+            "cmp" => Some(Op::Cmp),
+            "test" => Some(Op::Test),
+            "jmp" => Some(Op::Jmp),
+            "call" => Some(Op::Call),
+            "ret" => Some(Op::Ret),
+            "loop" => Some(Op::Loop),
+            "je" | "jz" => Some(Op::Je),
+            "jne" | "jnz" => Some(Op::Jne),
+            "jl" | "jnge" => Some(Op::Jl),
+            "jle" | "jng" => Some(Op::Jle),
+            "jg" | "jnle" => Some(Op::Jg),
+            "jge" | "jnl" => Some(Op::Jge),
+            "js" => Some(Op::Js),
+            "jns" => Some(Op::Jns),
+            "jc" | "jb" => Some(Op::Jc),
+            "jnc" | "jae" => Some(Op::Jnc),
+            "jo" => Some(Op::Jo),
+            "jno" => Some(Op::Jno),
+            "syscall" => Some(Op::Syscall),
             _ => None,
         }
     }
@@ -175,8 +175,8 @@ impl Parser {
     fn parse_size_override(&mut self) -> Option<Size> {
         if let Token::Ident(s) = self.peek() {
             let size = match s.to_ascii_lowercase().as_str() {
-                "byte"  => Some(Size::Byte),
-                "word"  => Some(Size::Word),
+                "byte" => Some(Size::Byte),
+                "word" => Some(Size::Word),
                 "dword" => Some(Size::Dword),
                 "qword" => Some(Size::Qword),
                 _ => None,
@@ -204,13 +204,19 @@ impl Parser {
         let mut label: Option<String> = None;
 
         if matches!(self.peek(), Token::RBracket) {
-            return Err(SimError::Parse { line, msg: "empty memory operand '[]'".into() });
+            return Err(SimError::Parse {
+                line,
+                msg: "empty memory operand '[]'".into(),
+            });
         }
 
         // Parse terms until ']'
         loop {
             match self.peek().clone() {
-                Token::RBracket => { self.advance(); break; }
+                Token::RBracket => {
+                    self.advance();
+                    break;
+                }
                 Token::Ident(s) => {
                     if let Some(reg) = Self::parse_register(&s) {
                         self.advance();
@@ -229,7 +235,10 @@ impl Parser {
                                     scale = n;
                                 }
                             } else {
-                                return Err(SimError::Parse { line, msg: "expected scale after *".into() });
+                                return Err(SimError::Parse {
+                                    line,
+                                    msg: "expected scale after *".into(),
+                                });
                             }
                         } else if base.is_none() {
                             base = Some(reg);
@@ -247,21 +256,38 @@ impl Parser {
                     self.advance();
                     disp = disp.wrapping_add(n);
                 }
-                Token::Plus  => { self.advance(); }
+                Token::Plus => {
+                    self.advance();
+                }
                 Token::Minus => {
                     self.advance();
                     if let Token::Number(n) = self.peek().clone() {
                         self.advance();
                         disp = disp.wrapping_sub(n);
                     } else {
-                        return Err(SimError::Parse { line, msg: "expected number after '-' in memory expression".into() });
+                        return Err(SimError::Parse {
+                            line,
+                            msg: "expected number after '-' in memory expression".into(),
+                        });
                     }
                 }
-                _ => return Err(SimError::Parse { line, msg: format!("unexpected token in memory expression: {:?}", self.peek()) }),
+                _ => {
+                    return Err(SimError::Parse {
+                        line,
+                        msg: format!("unexpected token in memory expression: {:?}", self.peek()),
+                    });
+                }
             }
         }
 
-        Ok(MemAddr { size, base, index, scale, disp, label })
+        Ok(MemAddr {
+            size,
+            base,
+            index,
+            scale,
+            disp,
+            label,
+        })
     }
 
     fn parse_operand(&mut self) -> Result<Operand, SimError> {
@@ -290,7 +316,10 @@ impl Parser {
                 self.advance();
                 Ok(Operand::Immediate(n))
             }
-            t => Err(SimError::Parse { line, msg: format!("expected operand, got {:?}", t) }),
+            t => Err(SimError::Parse {
+                line,
+                msg: format!("expected operand, got {:?}", t),
+            }),
         }
     }
 
@@ -323,7 +352,10 @@ impl Parser {
                 }
                 Token::Ident(s) => {
                     // Could be a label reference — for now error
-                    return Err(SimError::Parse { line, msg: format!("unexpected ident '{}' in db", s) });
+                    return Err(SimError::Parse {
+                        line,
+                        msg: format!("unexpected ident '{}' in db", s),
+                    });
                 }
                 _ => break,
             }
@@ -371,7 +403,10 @@ impl Parser {
             let line = self.line();
 
             match self.peek().clone() {
-                Token::Newline => { self.advance(); continue; }
+                Token::Newline => {
+                    self.advance();
+                    continue;
+                }
                 Token::Ident(s) => {
                     let lower = s.to_ascii_lowercase();
 
@@ -383,7 +418,10 @@ impl Parser {
                                 self.advance();
                                 lines.push(AsmLine::Directive(Directive::Section(name)));
                             } else {
-                                return Err(SimError::Parse { line, msg: "expected section name".into() });
+                                return Err(SimError::Parse {
+                                    line,
+                                    msg: "expected section name".into(),
+                                });
                             }
                         }
                         "global" | "extern" => {
@@ -392,7 +430,10 @@ impl Parser {
                                 self.advance();
                                 lines.push(AsmLine::Directive(Directive::Global(name)));
                             } else {
-                                return Err(SimError::Parse { line, msg: "expected symbol name".into() });
+                                return Err(SimError::Parse {
+                                    line,
+                                    msg: "expected symbol name".into(),
+                                });
                             }
                         }
                         "db" => {
@@ -421,7 +462,10 @@ impl Parser {
                                 self.advance();
                                 n as usize
                             } else {
-                                return Err(SimError::Parse { line, msg: "expected count after times".into() });
+                                return Err(SimError::Parse {
+                                    line,
+                                    msg: "expected count after times".into(),
+                                });
                             };
                             // parse the inner directive
                             let inner = if let Token::Ident(d) = self.peek().clone() {
@@ -431,18 +475,31 @@ impl Parser {
                                         let bytes = self.parse_db_values()?;
                                         Directive::Db(bytes)
                                     }
-                                    _ => return Err(SimError::Parse { line, msg: "expected directive after times".into() }),
+                                    _ => {
+                                        return Err(SimError::Parse {
+                                            line,
+                                            msg: "expected directive after times".into(),
+                                        });
+                                    }
                                 }
                             } else {
-                                return Err(SimError::Parse { line, msg: "expected directive after times count".into() });
+                                return Err(SimError::Parse {
+                                    line,
+                                    msg: "expected directive after times count".into(),
+                                });
                             };
-                            lines.push(AsmLine::Directive(Directive::Times { count, inner: Box::new(inner) }));
+                            lines.push(AsmLine::Directive(Directive::Times {
+                                count,
+                                inner: Box::new(inner),
+                            }));
                         }
                         _ => {
                             // Check if next token is ':' (label)
                             // Peek ahead without consuming
                             let next_pos = self.pos + 1;
-                            if next_pos < self.tokens.len() && self.tokens[next_pos].0 == Token::Colon {
+                            if next_pos < self.tokens.len()
+                                && self.tokens[next_pos].0 == Token::Colon
+                            {
                                 let label = s.clone();
                                 self.advance(); // ident
                                 self.advance(); // colon
@@ -453,11 +510,15 @@ impl Parser {
                                         self.advance();
                                         if let Token::Number(n) = self.peek().clone() {
                                             self.advance();
-                                            lines.push(AsmLine::Directive(Directive::Equ(label, n)));
+                                            lines
+                                                .push(AsmLine::Directive(Directive::Equ(label, n)));
                                             self.expect_newline_or_eof()?;
                                             continue;
                                         } else {
-                                            return Err(SimError::Parse { line, msg: "expected number after equ".into() });
+                                            return Err(SimError::Parse {
+                                                line,
+                                                msg: "expected number after equ".into(),
+                                            });
                                         }
                                     }
                                 }
@@ -481,7 +542,10 @@ impl Parser {
                                             self.expect_newline_or_eof()?;
                                             continue;
                                         } else {
-                                            return Err(SimError::Parse { line, msg: "expected number after equ".into() });
+                                            return Err(SimError::Parse {
+                                                line,
+                                                msg: "expected number after equ".into(),
+                                            });
                                         }
                                     }
                                 }
@@ -491,7 +555,10 @@ impl Parser {
                             let next_pos = self.pos + 1;
                             let next_is_data_directive = next_pos < self.tokens.len() && {
                                 if let Token::Ident(kw) = &self.tokens[next_pos].0 {
-                                    matches!(kw.to_ascii_lowercase().as_str(), "db" | "dw" | "dd" | "dq" | "times")
+                                    matches!(
+                                        kw.to_ascii_lowercase().as_str(),
+                                        "db" | "dw" | "dd" | "dq" | "times"
+                                    )
                                 } else {
                                     false
                                 }
@@ -507,15 +574,25 @@ impl Parser {
                             if let Some(op) = Self::parse_op(&s) {
                                 self.advance();
                                 let operands = self.parse_operands()?;
-                                lines.push(AsmLine::Instruction(Instruction { op, operands, line }));
+                                lines.push(AsmLine::Instruction(Instruction {
+                                    op,
+                                    operands,
+                                    line,
+                                }));
                             } else {
-                                return Err(SimError::Parse { line, msg: format!("unknown instruction or directive: '{}'", s) });
+                                return Err(SimError::Parse {
+                                    line,
+                                    msg: format!("unknown instruction or directive: '{}'", s),
+                                });
                             }
                         }
                     }
                 }
                 t => {
-                    return Err(SimError::Parse { line, msg: format!("unexpected token: {:?}", t) });
+                    return Err(SimError::Parse {
+                        line,
+                        msg: format!("unexpected token: {:?}", t),
+                    });
                 }
             }
 

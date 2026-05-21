@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use crate::ast::*;
 use crate::error::SimError;
-use crate::program::{Program, TEXT_BASE, DATA_BASE};
+use crate::program::{DATA_BASE, Program, TEXT_BASE};
+use std::collections::HashMap;
 
 pub struct Assembler {
     lines: Vec<AsmLine>,
@@ -81,7 +81,12 @@ impl Assembler {
 
         let entry = entry.unwrap_or(TEXT_BASE);
 
-        Ok(Program { instructions, symbols, data, entry })
+        Ok(Program {
+            instructions,
+            symbols,
+            data,
+            entry,
+        })
     }
 }
 
@@ -89,13 +94,19 @@ fn emit_data(d: &Directive, out: &mut Vec<u8>) -> Result<(), SimError> {
     match d {
         Directive::Db(bytes) => out.extend_from_slice(bytes),
         Directive::Dw(words) => {
-            for w in words { out.extend_from_slice(&w.to_le_bytes()); }
+            for w in words {
+                out.extend_from_slice(&w.to_le_bytes());
+            }
         }
         Directive::Dd(dwords) => {
-            for d in dwords { out.extend_from_slice(&d.to_le_bytes()); }
+            for d in dwords {
+                out.extend_from_slice(&d.to_le_bytes());
+            }
         }
         Directive::Dq(qwords) => {
-            for q in qwords { out.extend_from_slice(&q.to_le_bytes()); }
+            for q in qwords {
+                out.extend_from_slice(&q.to_le_bytes());
+            }
         }
         Directive::Times { count, inner } => {
             for _ in 0..*count {

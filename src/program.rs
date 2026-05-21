@@ -1,10 +1,10 @@
-use std::collections::HashMap;
 use crate::ast::AsmLine;
+use std::collections::HashMap;
 
 pub const TEXT_BASE: u64 = 0x1000;
 pub const DATA_BASE: u64 = 0x0010_0000;
 pub const STACK_TOP: u64 = 0x00FF_0000;
-pub const MEM_SIZE:  usize = 0x0100_0000; // 16 MiB
+pub const MEM_SIZE: usize = 0x0100_0000; // 16 MiB
 
 pub struct Program {
     /// Instructions in order. Index i is at virtual address TEXT_BASE + i (we interpret, not encode).

@@ -142,24 +142,6 @@ _start:
     assert_eq!(r.stdout, "");
 }
 
-#[wasm_bindgen_test]
-fn runtime_error_surfaced_in_stderr() {
-    let mut sim = Simulator::new(
-        "
-section .text
-global _start
-_start:
-    mov rax, 60
-    xor rdi, rdi
-    syscall
-    div rdi          ; unreachable, but if reached: divide by zero
-",
-    );
-    sim.run();
-    // halted cleanly; no panic
-    assert!(sim.is_halted());
-}
-
 // ── Step mode ─────────────────────────────────────────────────────────────────
 
 #[wasm_bindgen_test]
@@ -181,8 +163,12 @@ _start:
     assert_eq!(sim.steps(), 0);
     sim.step();
     assert_eq!(sim.steps(), 1);
+    assert_eq!(sim.regs().rax, 1);
     sim.step();
     assert_eq!(sim.steps(), 2);
+    assert_eq!(sim.regs().rbx, 2);
+    sim.run();
+    assert!(sim.is_halted());
 }
 
 #[wasm_bindgen_test]

@@ -1,16 +1,20 @@
 use crate::ast::*;
-use crate::error::SimError;
-use crate::cpu::registers::Registers;
+use crate::cpu::alu::{self, bits_for_size, bits_for_width};
 use crate::cpu::memory::Memory;
-use crate::cpu::alu::{self, bits_for_width, bits_for_size};
+use crate::cpu::registers::Registers;
 use crate::cpu::syscall::SyscallIo;
+use crate::error::SimError;
 use std::collections::HashMap;
 
 fn resolve_label(name: &str, symbols: &HashMap<String, i64>, rip: u64) -> Result<u64, SimError> {
-    symbols.get(name).copied().map(|v| v as u64).ok_or_else(|| SimError::Runtime {
-        rip,
-        msg: format!("undefined symbol '{}'", name),
-    })
+    symbols
+        .get(name)
+        .copied()
+        .map(|v| v as u64)
+        .ok_or_else(|| SimError::Runtime {
+            rip,
+            msg: format!("undefined symbol '{}'", name),
+        })
 }
 
 /// Compute effective address from MemAddr
@@ -26,7 +30,10 @@ fn effective_addr(
         0i64
     };
     let base = m.base.map(|r| regs.read(r) as i64).unwrap_or(0);
-    let idx  = m.index.map(|r| (regs.read(r) * m.scale as u64) as i64).unwrap_or(0);
+    let idx = m
+        .index
+        .map(|r| (regs.read(r) * m.scale as u64) as i64)
+        .unwrap_or(0);
     Ok((label_base + base + idx + m.disp) as u64)
 }
 
@@ -47,8 +54,8 @@ pub fn read_operand(
             let addr = effective_addr(m, regs, symbols, rip)?;
             let size = m.size.unwrap_or_else(|| width_to_size(default_width));
             match size {
-                Size::Byte  => mem.read_u8(addr, rip).map(|v| v as u64),
-                Size::Word  => mem.read_u16(addr, rip).map(|v| v as u64),
+                Size::Byte => mem.read_u8(addr, rip).map(|v| v as u64),
+                Size::Word => mem.read_u16(addr, rip).map(|v| v as u64),
                 Size::Dword => mem.read_u32(addr, rip).map(|v| v as u64),
                 Size::Qword => mem.read_u64(addr, rip),
             }
@@ -59,9 +66,9 @@ pub fn read_operand(
 fn width_to_size(w: RegWidth) -> Size {
     match w {
         RegWidth::Byte | RegWidth::ByteHi => Size::Byte,
-        RegWidth::Word   => Size::Word,
-        RegWidth::Dword  => Size::Dword,
-        RegWidth::Qword  => Size::Qword,
+        RegWidth::Word => Size::Word,
+        RegWidth::Dword => Size::Dword,
+        RegWidth::Qword => Size::Qword,
     }
 }
 
@@ -69,11 +76,9 @@ fn width_to_size(w: RegWidth) -> Size {
 fn operand_bits(dst: &Operand, src: &Operand) -> u32 {
     match dst {
         Operand::Register(r) => bits_for_width(r.width),
-        Operand::Memory(m) => m.size.map(bits_for_size).unwrap_or_else(|| {
-            match src {
-                Operand::Register(r) => bits_for_width(r.width),
-                _ => 64,
-            }
+        Operand::Memory(m) => m.size.map(bits_for_size).unwrap_or_else(|| match src {
+            Operand::Register(r) => bits_for_width(r.width),
+            _ => 64,
         }),
         _ => 64,
     }
@@ -90,18 +95,24 @@ fn write_dst(
 ) -> Result<(), SimError> {
     let rip = regs.rip;
     match op {
-        Operand::Register(r) => { regs.write(*r, val); Ok(()) }
+        Operand::Register(r) => {
+            regs.write(*r, val);
+            Ok(())
+        }
         Operand::Memory(m) => {
             let addr = effective_addr(m, regs, symbols, rip)?;
             let size = m.size.unwrap_or_else(|| width_to_size(default_width));
             match size {
-                Size::Byte  => mem.write_u8(addr, val as u8, rip),
-                Size::Word  => mem.write_u16(addr, val as u16, rip),
+                Size::Byte => mem.write_u8(addr, val as u8, rip),
+                Size::Word => mem.write_u16(addr, val as u16, rip),
                 Size::Dword => mem.write_u32(addr, val as u32, rip),
                 Size::Qword => mem.write_u64(addr, val, rip),
             }
         }
-        _ => Err(SimError::Runtime { rip, msg: "invalid destination operand".into() }),
+        _ => Err(SimError::Runtime {
+            rip,
+            msg: "invalid destination operand".into(),
+        }),
     }
 }
 
@@ -112,13 +123,22 @@ fn default_width_of(op: &Operand) -> RegWidth {
     }
 }
 
-fn jump_to(target: &Operand, regs: &mut Registers, symbols: &HashMap<String, i64>) -> Result<(), SimError> {
+fn jump_to(
+    target: &Operand,
+    regs: &mut Registers,
+    symbols: &HashMap<String, i64>,
+) -> Result<(), SimError> {
     let rip = regs.rip;
     let addr = match target {
         Operand::Label(name) => resolve_label(name, symbols, rip)?,
         Operand::Register(r) => regs.read(*r),
         Operand::Immediate(n) => *n as u64,
-        op => return Err(SimError::Runtime { rip, msg: format!("invalid jump target: {:?}", op) }),
+        op => {
+            return Err(SimError::Runtime {
+                rip,
+                msg: format!("invalid jump target: {:?}", op),
+            });
+        }
     };
     // Convert virtual address to instruction index
     regs.rip = addr;
@@ -140,7 +160,12 @@ pub fn execute(
             if ops.len() < $n {
                 return Err(SimError::Runtime {
                     rip,
-                    msg: format!("{:?} requires {} operand(s), got {}", instr.op, $n, ops.len()),
+                    msg: format!(
+                        "{:?} requires {} operand(s), got {}",
+                        instr.op,
+                        $n,
+                        ops.len()
+                    ),
                 });
             }
         };
@@ -195,7 +220,12 @@ pub fn execute(
             let addr = match &ops[1] {
                 Operand::Memory(m) => effective_addr(m, regs, symbols, rip)?,
                 Operand::Label(name) => resolve_label(name, symbols, rip)?,
-                _ => return Err(SimError::Runtime { rip, msg: "lea requires memory operand".into() }),
+                _ => {
+                    return Err(SimError::Runtime {
+                        rip,
+                        msg: "lea requires memory operand".into(),
+                    });
+                }
             };
             let dw = default_width_of(&ops[0]);
             write_dst(&ops[0], addr, regs, mem, symbols, dw)?;
@@ -346,7 +376,12 @@ pub fn execute(
                     regs.flags.of = overflow;
                     write_dst(&ops[0], result, regs, mem, symbols, dw)?;
                 }
-                _ => return Err(SimError::Runtime { rip, msg: "imul: invalid operand count".into() }),
+                _ => {
+                    return Err(SimError::Runtime {
+                        rip,
+                        msg: "imul: invalid operand count".into(),
+                    });
+                }
             }
         }
 
@@ -355,15 +390,21 @@ pub fn execute(
             let dw = default_width_of(&ops[0]);
             let src = read_operand(&ops[0], regs, mem, symbols, dw)?;
             if src == 0 {
-                return Err(SimError::Runtime { rip, msg: "division by zero".into() });
+                return Err(SimError::Runtime {
+                    rip,
+                    msg: "division by zero".into(),
+                });
             }
             let dividend_lo = regs.read_named(Register::Rax);
             let dividend_hi = regs.read_named(Register::Rdx);
             let dividend = (dividend_hi as u128) << 64 | dividend_lo as u128;
             let quot = dividend / src as u128;
-            let rem  = dividend % src as u128;
+            let rem = dividend % src as u128;
             if quot > u64::MAX as u128 {
-                return Err(SimError::Runtime { rip, msg: "div overflow".into() });
+                return Err(SimError::Runtime {
+                    rip,
+                    msg: "div overflow".into(),
+                });
             }
             regs.write_named(Register::Rax, quot as u64);
             regs.write_named(Register::Rdx, rem as u64);
@@ -374,15 +415,21 @@ pub fn execute(
             let dw = default_width_of(&ops[0]);
             let src = read_operand(&ops[0], regs, mem, symbols, dw)? as i64;
             if src == 0 {
-                return Err(SimError::Runtime { rip, msg: "division by zero".into() });
+                return Err(SimError::Runtime {
+                    rip,
+                    msg: "division by zero".into(),
+                });
             }
             let dividend_lo = regs.read_named(Register::Rax);
             let dividend_hi = regs.read_named(Register::Rdx) as i64;
             let dividend = ((dividend_hi as i128) << 64) | (dividend_lo as i128);
             let quot = dividend / src as i128;
-            let rem  = dividend % src as i128;
+            let rem = dividend % src as i128;
             if quot > i64::MAX as i128 || quot < i64::MIN as i128 {
-                return Err(SimError::Runtime { rip, msg: "idiv overflow".into() });
+                return Err(SimError::Runtime {
+                    rip,
+                    msg: "idiv overflow".into(),
+                });
             }
             regs.write_named(Register::Rax, quot as u64);
             regs.write_named(Register::Rdx, rem as u64);
@@ -414,7 +461,11 @@ pub fn execute(
             let dw = default_width_of(&ops[0]);
             let bits = bits_for_width(dw);
             let val = read_operand(&ops[0], regs, mem, symbols, dw)?;
-            let mask = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
+            let mask = if bits >= 64 {
+                u64::MAX
+            } else {
+                (1u64 << bits) - 1
+            };
             write_dst(&ops[0], (!val) & mask, regs, mem, symbols, dw)?;
         }
 
@@ -471,18 +522,90 @@ pub fn execute(
             return Ok(false);
         }
 
-        Op::Je  => { require!(1); if regs.flags.zf                              { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jne => { require!(1); if !regs.flags.zf                             { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jl  => { require!(1); if regs.flags.sf != regs.flags.of             { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jle => { require!(1); if regs.flags.zf || regs.flags.sf != regs.flags.of { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jg  => { require!(1); if !regs.flags.zf && regs.flags.sf == regs.flags.of { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jge => { require!(1); if regs.flags.sf == regs.flags.of             { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Js  => { require!(1); if regs.flags.sf                              { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jns => { require!(1); if !regs.flags.sf                             { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jc  => { require!(1); if regs.flags.cf                              { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jnc => { require!(1); if !regs.flags.cf                             { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jo  => { require!(1); if regs.flags.of                              { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
-        Op::Jno => { require!(1); if !regs.flags.of                             { jump_to(&ops[0], regs, symbols)?; return Ok(false); } }
+        Op::Je => {
+            require!(1);
+            if regs.flags.zf {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jne => {
+            require!(1);
+            if !regs.flags.zf {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jl => {
+            require!(1);
+            if regs.flags.sf != regs.flags.of {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jle => {
+            require!(1);
+            if regs.flags.zf || regs.flags.sf != regs.flags.of {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jg => {
+            require!(1);
+            if !regs.flags.zf && regs.flags.sf == regs.flags.of {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jge => {
+            require!(1);
+            if regs.flags.sf == regs.flags.of {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Js => {
+            require!(1);
+            if regs.flags.sf {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jns => {
+            require!(1);
+            if !regs.flags.sf {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jc => {
+            require!(1);
+            if regs.flags.cf {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jnc => {
+            require!(1);
+            if !regs.flags.cf {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jo => {
+            require!(1);
+            if regs.flags.of {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
+        Op::Jno => {
+            require!(1);
+            if !regs.flags.of {
+                jump_to(&ops[0], regs, symbols)?;
+                return Ok(false);
+            }
+        }
 
         Op::Call => {
             require!(1);
@@ -519,7 +642,9 @@ pub fn execute(
 
         Op::Syscall => {
             let halt = crate::cpu::syscall::dispatch(regs, mem, io)?;
-            if halt { return Ok(true); }
+            if halt {
+                return Ok(true);
+            }
         }
 
         Op::Equ => {} // resolved at assembly time

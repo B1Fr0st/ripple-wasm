@@ -1,5 +1,5 @@
 use crate::error::SimError;
-use crate::program::{DATA_BASE, TEXT_BASE, STACK_TOP, MEM_SIZE};
+use crate::program::{DATA_BASE, MEM_SIZE, STACK_TOP, TEXT_BASE};
 
 pub struct Memory {
     pub data: Vec<u8>,
@@ -43,19 +43,19 @@ impl Memory {
     pub fn read_u16(&self, addr: u64, rip: u64) -> Result<u16, SimError> {
         self.check(addr, 2, false, rip)?;
         let i = addr as usize;
-        Ok(u16::from_le_bytes([self.data[i], self.data[i+1]]))
+        Ok(u16::from_le_bytes([self.data[i], self.data[i + 1]]))
     }
 
     pub fn read_u32(&self, addr: u64, rip: u64) -> Result<u32, SimError> {
         self.check(addr, 4, false, rip)?;
         let i = addr as usize;
-        Ok(u32::from_le_bytes(self.data[i..i+4].try_into().unwrap()))
+        Ok(u32::from_le_bytes(self.data[i..i + 4].try_into().unwrap()))
     }
 
     pub fn read_u64(&self, addr: u64, rip: u64) -> Result<u64, SimError> {
         self.check(addr, 8, false, rip)?;
         let i = addr as usize;
-        Ok(u64::from_le_bytes(self.data[i..i+8].try_into().unwrap()))
+        Ok(u64::from_le_bytes(self.data[i..i + 8].try_into().unwrap()))
     }
 
     pub fn write_u8(&mut self, addr: u64, val: u8, rip: u64) -> Result<(), SimError> {
@@ -67,21 +67,21 @@ impl Memory {
     pub fn write_u16(&mut self, addr: u64, val: u16, rip: u64) -> Result<(), SimError> {
         self.check(addr, 2, true, rip)?;
         let i = addr as usize;
-        self.data[i..i+2].copy_from_slice(&val.to_le_bytes());
+        self.data[i..i + 2].copy_from_slice(&val.to_le_bytes());
         Ok(())
     }
 
     pub fn write_u32(&mut self, addr: u64, val: u32, rip: u64) -> Result<(), SimError> {
         self.check(addr, 4, true, rip)?;
         let i = addr as usize;
-        self.data[i..i+4].copy_from_slice(&val.to_le_bytes());
+        self.data[i..i + 4].copy_from_slice(&val.to_le_bytes());
         Ok(())
     }
 
     pub fn write_u64(&mut self, addr: u64, val: u64, rip: u64) -> Result<(), SimError> {
         self.check(addr, 8, true, rip)?;
         let i = addr as usize;
-        self.data[i..i+8].copy_from_slice(&val.to_le_bytes());
+        self.data[i..i + 8].copy_from_slice(&val.to_le_bytes());
         Ok(())
     }
 

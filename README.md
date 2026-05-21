@@ -157,4 +157,5 @@ console.log(sim.exit_code());     // 0
 | `take_stderr()` | Drain accumulated stderr |
 | `feed_stdin(bytes)` | Supply bytes for `sys_read` |
 | `dump_regs()` | Human-readable register dump |
+| `regs()` | Javascript object containing register state|
 | `steps()` | Total instructions executed |

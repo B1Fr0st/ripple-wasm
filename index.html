@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>asm-sim</title>
+  <style>
+    :root {
+      --bg:       #141414;
+      --surface:  #1e1e1e;
+      --panel:    #252525;
+      --border:   #333;
+      --text:     #ccc;
+      --dim:      #555;
+      --accent:   #4a9eff;
+      --green:    #3fb950;
+      --amber:    #e3b341;
+      --red:      #f85149;
+      --mono:     'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', monospace;
+      --line-h:   22px;
+      --pad-top:  12px;
+      --gutter-w: 52px;
+      --font-sz:  13px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: var(--font-sz);
+      overflow: hidden;
+    }
+
+    /* ── Layout ──────────────────────────────────── */
+    #app { display: flex; flex-direction: column; height: 100%; }
+
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Toolbar ─────────────────────────────────── */
+    .logo { font-weight: 700; color: var(--accent); letter-spacing: -0.5px; margin-right: 4px; }
+    .divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+
+    button {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #2a2a2a; color: var(--text); border: 1px solid var(--border);
+      border-radius: 5px; padding: 4px 11px;
+      font-family: var(--mono); font-size: 12px;
+      cursor: pointer; transition: background 80ms, border-color 80ms; white-space: nowrap;
+    }
+    button:hover:not(:disabled) { background: #333; border-color: #444; }
+    button:active:not(:disabled) { background: #3a3a3a; }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    #btn-run      { color: var(--green);  border-color: #254d2e; }
+    #btn-step     { color: var(--accent); }
+    #btn-continue { color: var(--amber);  border-color: #5a4a1a; }
+    #btn-reset    { color: var(--red);    border-color: #4d1f1f; }
+
+    .spacer { flex: 1; }
+
+    #status {
+      font-size: 11px; color: var(--dim); padding: 2px 8px;
+      border-radius: 4px; transition: color 150ms;
+    }
+    #status.running    { color: var(--accent); }
+    #status.halted     { color: var(--green);  }
+    #status.error      { color: var(--red);    }
+    #status.breakpoint { color: var(--amber);  }
+
+    #sample-select {
+      background: #2a2a2a; color: var(--text);
+      border: 1px solid var(--border); border-radius: 5px;
+      padding: 4px 8px; font-family: var(--mono); font-size: 12px; cursor: pointer;
+    }
+    #sample-select:focus { outline: 1px solid var(--accent); }
+
+    /* ── Editor pane ─────────────────────────────── */
+    #editor-pane {
+      display: flex; flex-direction: column;
+      width: 48%; min-width: 280px; border-right: 1px solid var(--border);
+    }
+
+    .pane-header {
+      display: flex; align-items: center;
+      padding: 4px 10px; font-size: 11px; color: var(--dim);
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; gap: 6px;
+    }
+    .pane-header .hint { margin-left: auto; font-size: 10px; opacity: 0.6; }
+
+    /* ── Editor + Gutter ─────────────────────────── */
+    #editor-wrap {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    /* Line highlight overlays — behind everything */
+    .line-hl {
+      position: absolute; left: 0; right: 0;
+      height: var(--line-h);
+      pointer-events: none;
+      z-index: 0;
+      display: none;
+    }
+    #cur-line-hl { background: rgba(74, 158, 255, 0.10); }
+    #err-line-hl { background: rgba(248, 81, 73, 0.13); }
+    #bp-line-hl  { background: rgba(227, 179, 65, 0.12); }
+
+    /* Gutter */
+    #gutter {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: var(--gutter-w);
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      z-index: 2;
+      cursor: pointer;
+    }
+
+    #gutter-inner {
+      padding-top: var(--pad-top);
+    }
+
+    .gutter-line {
+      display: flex; align-items: center; justify-content: flex-end;
+      height: var(--line-h); padding-right: 7px; gap: 5px;
+      font-size: 11px; user-select: none;
+    }
+    .gutter-line:hover { background: rgba(255,255,255,0.04); }
+    .gutter-line.gl-active { background: rgba(74,158,255,0.15); }
+    .gutter-line.gl-bp-active { background: rgba(227,179,65,0.15); }
+
+    .bp-dot { font-size: 9px; line-height: 1; }
+    .bp-dot.off { color: transparent; }
+    .bp-dot.on  { color: var(--red); }
+    .ln { color: var(--dim); min-width: 2ch; text-align: right; }
+    .gutter-line.gl-active .ln { color: var(--accent); }
+    .gutter-line.gl-bp-active .ln { color: var(--amber); }
+
+    /* Execution arrow */
+    #exec-arrow {
+      position: absolute; left: calc(var(--gutter-w) + 2px);
+      width: 14px; font-size: 10px; line-height: var(--line-h);
+      color: var(--accent); pointer-events: none; z-index: 3; display: none;
+    }
+
+    /* The textarea */
+    #editor {
+      position: absolute; inset: 0;
+      background: transparent;
+      color: #d4d4d4;
+      border: none;
+      padding: var(--pad-top) 14px 12px calc(var(--gutter-w) + 16px);
+      font-family: var(--mono);
+      font-size: var(--font-sz);
+      line-height: var(--line-h);
+      resize: none;
+      outline: none;
+      tab-size: 4;
+      overflow-y: scroll;
+      z-index: 1;
+    }
+    #editor::selection { background: #264f78; }
+
+    /* ── Output pane ─────────────────────────────── */
+    #output-pane { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    #terminal {
+      flex: 1;
+      background: #0d0d0d;
+      padding: 10px 14px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.6;
+    }
+    #terminal:empty::before { content: 'Run a program to see output here.'; color: var(--dim); }
+
+    .out-stdout { color: #d4d4d4; }
+    .out-stderr { color: var(--amber); }
+    .out-error  { color: var(--red); }
+    .out-info   { color: var(--dim); font-style: italic; }
+
+    /* ── Register pane ───────────────────────────── */
+    #regs-pane { flex-shrink: 0; border-top: 1px solid var(--border); background: var(--panel); }
+
+    #regs-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 2px 0; padding: 8px 14px 10px; font-size: 11.5px; line-height: 1.8;
+    }
+    .reg { display: flex; gap: 4px; }
+    .reg-name { color: #7ec8e3; min-width: 3.2ch; }
+    .reg-val  { color: #d4d4d4; }
+    .reg-zero { color: var(--dim); }
+
+    #flags-row {
+      display: flex; gap: 10px;
+      padding: 4px 14px 8px;
+      font-size: 11.5px; border-top: 1px solid #2a2a2a;
+    }
+    .flag { display: flex; gap: 3px; }
+    .flag-name { color: #7ec8e3; }
+    .flag-1 { color: var(--green); font-weight: bold; }
+    .flag-0 { color: var(--dim); }
+
+    #rip-row { padding: 0 14px 8px; font-size: 11.5px; color: var(--dim); }
+    #rip-row span { color: #d4d4d4; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <div id="toolbar">
+    <span class="logo">asm-sim</span>
+    <div class="divider"></div>
+    <button id="btn-run">▶ Run</button>
+    <button id="btn-step">→ Step</button>
+    <button id="btn-continue" disabled>⟳ Continue</button>
+    <button id="btn-reset">↺ Reset</button>
+    <div class="divider"></div>
+    <select id="sample-select" title="Load a sample program">
+      <option value="">samples…</option>
+      <option value="hello">Hello World</option>
+      <option value="loop">Count 1–5</option>
+      <option value="fib">Fibonacci</option>
+      <option value="fact">Factorial</option>
+      <option value="frames">Stack Frames</option>
+    </select>
+    <span class="spacer"></span>
+    <span id="status">loading…</span>
+  </div>
+
+  <div id="main">
+
+    <div id="editor-pane">
+      <div class="pane-header">
+        editor
+        <span class="hint">ctrl+enter → run &nbsp;|&nbsp; F8 → step &nbsp;|&nbsp; click gutter → breakpoint</span>
+      </div>
+      <div id="editor-wrap">
+        <div class="line-hl" id="cur-line-hl"></div>
+        <div class="line-hl" id="err-line-hl"></div>
+        <div class="line-hl" id="bp-line-hl"></div>
+        <div id="exec-arrow">▶</div>
+        <div id="gutter"><div id="gutter-inner"></div></div>
+        <textarea id="editor" spellcheck="false" autocorrect="off" autocapitalize="off"></textarea>
+      </div>
+    </div>
+
+    <div id="output-pane">
+      <div class="pane-header">output</div>
+      <div id="terminal"></div>
+      <div id="regs-pane">
+        <div class="pane-header">registers</div>
+        <div id="regs-grid"></div>
+        <div id="flags-row"></div>
+        <div id="rip-row"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+import init, { Simulator } from './pkg/asm_sim.js';
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const LINE_H  = 22;   // matches --line-h CSS var (px)
+const PAD_TOP = 12;   // matches --pad-top CSS var (px)
+const BATCH   = 10_000;
+
+const STEP_RUNNING    = 0;
+const STEP_HALTED     = 1;
+const STEP_BREAKPOINT = 2;
+
+const GP_NAMES   = ['rax','rbx','rcx','rdx','rsi','rdi','rsp','rbp','r8','r9','r10','r11','r12','r13','r14','r15'];
+const FLAG_NAMES = ['CF','ZF','SF','OF','PF'];
+
+// ── Sample programs ────────────────────────────────────────────────────────
+const SAMPLES = {
+  hello: `section .data
+    msg db "Hello, World!", 10
+msg_len equ 14
+
+section .text
+global _start
+
+_start:
+    mov  rax, 1
+    mov  rdi, 1
+    lea  rsi, [msg]
+    mov  rdx, msg_len
+    syscall
+
+    mov  rax, 60
+    xor  rdi, rdi
+    syscall`,
+
+  loop: `; Print digits 1-5, each on its own line
+section .data
+    buf db 0, 10
+
+section .text
+global _start
+
+_start:
+    mov  rcx, 5
+    mov  rax, 1         ; start value
+
+.next:
+    add  rax, 48        ; '0' + digit
+    lea  rdi, [buf]
+    mov  byte ptr [rdi], al
+    sub  rax, 48
+
+    push rax
+    push rcx
+    mov  rax, 1
+    mov  rdi, 1
+    lea  rsi, [buf]
+    mov  rdx, 2
+    syscall
+    pop  rcx
+    pop  rax
+
+    inc  rax
+    loop .next
+
+    mov  rax, 60
+    xor  rdi, rdi
+    syscall`,
+
+  fib: `; Print first 10 Fibonacci numbers (one per line)
+section .data
+    buf db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10
+buf_end equ 12
+
+section .text
+global _start
+
+_start:
+    mov  r12, 0         ; a
+    mov  r13, 1         ; b
+    mov  r14, 10        ; count
+
+.loop:
+    ; print r12
+    mov  rax, r12
+    lea  rdi, [buf]
+    add  rdi, 10        ; point to end of digit area
+    mov  r15, rdi       ; save end ptr
+    test rax, rax
+    jnz  .digits
+    mov  byte ptr [rdi], 48
+    dec  rdi
+    jmp  .print
+.digits:
+    test rax, rax
+    jz   .print
+    mov  rcx, 10
+    xor  rdx, rdx
+    div  rcx
+    add  dl, 48
+    mov  byte ptr [rdi], dl
+    dec  rdi
+    jmp  .digits
+.print:
+    inc  rdi
+    lea  rsi, [buf]
+    add  rsi, 11
+    mov  byte ptr [rsi], 10
+    mov  rdx, r15
+    sub  rdx, rdi
+    inc  rdx
+    inc  rdx
+    push rdi
+    mov  rsi, rdi
+    mov  rax, 1
+    mov  rdi, 1
+    syscall
+    pop  rdi
+
+    mov  rax, r12
+    add  rax, r13
+    mov  r12, r13
+    mov  r13, rax
+
+    dec  r14
+    jnz  .loop
+
+    mov  rax, 60
+    xor  rdi, rdi
+    syscall`,
+
+  fact: `; Compute 10! iteratively and print the result
+section .data
+    buf db 0, 0, 0, 0, 0, 0, 0, 0, 10
+
+section .text
+global _start
+
+_start:
+    mov  rax, 1
+    mov  rcx, 10
+
+.loop:
+    imul rax, rcx
+    dec  rcx
+    jnz  .loop
+
+    ; rax = 3628800 — convert to decimal string
+    lea  rdi, [buf]
+    add  rdi, 7
+    mov  r8, rdi
+
+.tostr:
+    mov  rcx, 10
+    xor  rdx, rdx
+    div  rcx
+    add  dl, 48
+    mov  byte ptr [rdi], dl
+    dec  rdi
+    test rax, rax
+    jnz  .tostr
+
+    inc  rdi
+    mov  rsi, rdi
+    mov  rdx, r8
+    sub  rdx, rdi
+    add  rdx, 2
+    mov  rax, 1
+    mov  rdi, 1
+    syscall
+
+    mov  rax, 60
+    xor  rdi, rdi
+    syscall`,
+
+  frames: `; Stack frame demo: sum_squares(a, b) = a*a + b*b
+; Uses enter/leave and nop — try setting a breakpoint!
+section .data
+    buf db 0, 0, 0, 0, 10
+
+section .text
+global _start
+
+; rdi=a, rsi=b  ->  rax = a*a + b*b
+sum_squares:
+    enter 0, 0          ; push rbp; mov rbp, rsp
+    nop                 ; inspect frame here
+    imul rdi, rdi       ; a*a
+    imul rsi, rsi       ; b*b
+    lea  rax, [rdi+rsi] ; sum
+    leave               ; mov rsp, rbp; pop rbp
+    ret
+
+_start:
+    mov  rdi, 3
+    mov  rsi, 4
+    call sum_squares    ; 3*3 + 4*4 = 25
+
+    ; convert rax to decimal string
+    lea  rdi, [buf]
+    add  rdi, 2
+    mov  r8, rdi
+.digit:
+    mov  rcx, 10
+    xor  rdx, rdx
+    div  rcx
+    add  dl, 48
+    mov  byte ptr [rdi], dl
+    dec  rdi
+    test rax, rax
+    jnz  .digit
+    inc  rdi
+    mov  rsi, rdi
+    mov  rdx, r8
+    sub  rdx, rdi
+    add  rdx, 2
+    mov  rax, 1
+    mov  rdi, 1
+    syscall
+
+    mov  rax, 60
+    xor  rdi, rdi
+    syscall`,
+};
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const editorEl   = document.getElementById('editor');
+const gutterEl   = document.getElementById('gutter');
+const gutterInner= document.getElementById('gutter-inner');
+const curLineHl  = document.getElementById('cur-line-hl');
+const errLineHl  = document.getElementById('err-line-hl');
+const bpLineHl   = document.getElementById('bp-line-hl');
+const execArrow  = document.getElementById('exec-arrow');
+const termEl     = document.getElementById('terminal');
+const regsGrid   = document.getElementById('regs-grid');
+const flagsRow   = document.getElementById('flags-row');
+const ripRow     = document.getElementById('rip-row');
+const statusEl   = document.getElementById('status');
+const btnRun     = document.getElementById('btn-run');
+const btnStep    = document.getElementById('btn-step');
+const btnContinue= document.getElementById('btn-continue');
+const btnReset   = document.getElementById('btn-reset');
+const sampleSel  = document.getElementById('sample-select');
+
+// ── State ──────────────────────────────────────────────────────────────────
+let sim        = null;
+let rafId      = null;
+let breakpoints= new Set();   // source line numbers (1-indexed)
+let errLine    = 0;           // line highlighted for error (0 = none)
+
+// ── Init ───────────────────────────────────────────────────────────────────
+editorEl.value = SAMPLES.hello;
+await init();
+initRegsGrid();
+updateGutter();
+setStatus('ready');
+
+// ── Gutter ─────────────────────────────────────────────────────────────────
+
+function updateGutter() {
+  const lines = editorEl.value.split('\n');
+  const n = lines.length;
+
+  // Grow or shrink gutter lines to match
+  while (gutterInner.children.length < n) {
+    const div = document.createElement('div');
+    div.className = 'gutter-line';
+    div.addEventListener('click', onGutterClick);
+    gutterInner.appendChild(div);
+  }
+  while (gutterInner.children.length > n) {
+    gutterInner.removeChild(gutterInner.lastChild);
+  }
+
+  const curLine = (sim && !sim.is_halted()) ? sim.current_source_line() : 0;
+
+  for (let i = 0; i < n; i++) {
+    const lineNum = i + 1;
+    const div = gutterInner.children[i];
+    div.dataset.line = lineNum;
+    const hasBp   = breakpoints.has(lineNum);
+    const isCur   = (lineNum === curLine);
+    const isBpHit = isCur && sim && sim.is_at_breakpoint();
+    div.className = 'gutter-line' +
+      (isBpHit ? ' gl-bp-active' : isCur ? ' gl-active' : '');
+    div.innerHTML =
+      `<span class="bp-dot ${hasBp ? 'on' : 'off'}">${hasBp ? '●' : '●'}</span>` +
+      `<span class="ln">${lineNum}</span>`;
+  }
+}
+
+function onGutterClick(e) {
+  const lineNum = parseInt(e.currentTarget.dataset.line);
+  if (breakpoints.has(lineNum)) {
+    breakpoints.delete(lineNum);
+    if (sim) sim.clear_breakpoint(lineNum);
+  } else {
+    breakpoints.add(lineNum);
+    if (sim) sim.set_breakpoint(lineNum);
+  }
+  updateGutter();
+}
+
+// ── Highlights ─────────────────────────────────────────────────────────────
+
+function positionHl(hlEl, lineNum) {
+  if (lineNum <= 0) { hlEl.style.display = 'none'; return; }
+  const top = PAD_TOP + (lineNum - 1) * LINE_H - editorEl.scrollTop;
+  hlEl.style.display = 'block';
+  hlEl.style.top = top + 'px';
+}
+
+function updateHighlights() {
+  // Sync gutter scroll
+  gutterInner.style.transform = `translateY(${-editorEl.scrollTop}px)`;
+
+  // Error highlight — static, cleared on reset/edit
+  positionHl(errLineHl, errLine);
+
+  if (sim && !sim.is_halted()) {
+    const line = sim.current_source_line();
+    positionHl(curLineHl, line);
+
+    if (sim.is_at_breakpoint()) {
+      positionHl(bpLineHl, line);
+      curLineHl.style.display = 'none';
+    } else {
+      bpLineHl.style.display = 'none';
+    }
+
+    // Execution arrow
+    if (line > 0) {
+      const top = PAD_TOP + (line - 1) * LINE_H - editorEl.scrollTop;
+      execArrow.style.top = top + 'px';
+      execArrow.style.lineHeight = LINE_H + 'px';
+      execArrow.style.display = 'block';
+    } else {
+      execArrow.style.display = 'none';
+    }
+  } else {
+    curLineHl.style.display = 'none';
+    bpLineHl.style.display = 'none';
+    execArrow.style.display = 'none';
+  }
+}
+
+function scrollToLine(lineNum) {
+  if (lineNum <= 0) return;
+  const lineTop = PAD_TOP + (lineNum - 1) * LINE_H;
+  const lineBot = lineTop + LINE_H;
+  const visTop  = editorEl.scrollTop;
+  const visBot  = editorEl.scrollTop + editorEl.clientHeight;
+  if (lineTop < visTop) {
+    editorEl.scrollTop = Math.max(0, lineTop - PAD_TOP);
+  } else if (lineBot > visBot) {
+    editorEl.scrollTop = lineBot - editorEl.clientHeight + PAD_TOP;
+  }
+}
+
+// ── Terminal helpers ───────────────────────────────────────────────────────
+
+function appendTerm(text, cls) {
+  if (!text) return;
+  const span = document.createElement('span');
+  span.className = cls;
+  span.textContent = text;
+  termEl.appendChild(span);
+  termEl.scrollTop = termEl.scrollHeight;
+}
+
+function clearTerm() { termEl.innerHTML = ''; }
+
+function flushBuffers() {
+  if (!sim) return;
+  appendTerm(sim.take_stdout(), 'out-stdout');
+  appendTerm(sim.take_stderr(), 'out-stderr');
+}
+
+// ── Register display ───────────────────────────────────────────────────────
+
+function initRegsGrid() {
+  regsGrid.innerHTML = '';
+  for (const name of GP_NAMES) {
+    const div = document.createElement('div');
+    div.className = 'reg';
+    div.innerHTML = `<span class="reg-name">${name}</span><span class="reg-val reg-zero" id="rv-${name}">0x0</span>`;
+    regsGrid.appendChild(div);
+  }
+  flagsRow.innerHTML = FLAG_NAMES.map(f =>
+    `<div class="flag"><span class="flag-name">${f}</span><span class="flag-0" id="fv-${f}">0</span></div>`
+  ).join('');
+}
+
+function updateRegs() {
+  if (!sim) {
+    for (const name of GP_NAMES) {
+      const el = document.getElementById(`rv-${name}`);
+      if (el) { el.textContent = '0x0'; el.className = 'reg-val reg-zero'; }
+    }
+    for (const f of FLAG_NAMES) {
+      const el = document.getElementById(`fv-${f}`);
+      if (el) { el.textContent = '0'; el.className = 'flag-0'; }
+    }
+    ripRow.innerHTML = '';
+    return;
+  }
+
+  const raw  = sim.dump_regs();
+  const vals = {};
+  for (const m of raw.matchAll(/(\w+)=(0x[0-9a-f]+|\d+|true|false)/g)) vals[m[1]] = m[2];
+
+  for (const name of GP_NAMES) {
+    const el = document.getElementById(`rv-${name}`);
+    if (!el) continue;
+    const v      = vals[name] ?? '0x0';
+    const isZero = v === '0x0' || v === '0x0000000000000000';
+    el.textContent  = isZero ? '0x0' : v;
+    el.className    = isZero ? 'reg-val reg-zero' : 'reg-val';
+  }
+  for (const f of FLAG_NAMES) {
+    const el = document.getElementById(`fv-${f}`);
+    if (!el) continue;
+    const v      = vals[f] ?? '0';
+    el.textContent = v;
+    el.className   = v === '1' ? 'flag-1' : 'flag-0';
+  }
+  const rip   = vals['rip']   ?? '';
+  const steps = vals['steps'] ?? '';
+  ripRow.innerHTML = rip ? `rip=<span>${rip}</span> &nbsp; steps=<span>${steps}</span>` : '';
+}
+
+// ── Status ─────────────────────────────────────────────────────────────────
+
+function setStatus(text, cls = '') {
+  statusEl.textContent = text;
+  statusEl.className   = cls;
+}
+
+// ── Button state ───────────────────────────────────────────────────────────
+
+function setButtons(running) {
+  btnRun.disabled      = running;
+  btnStep.disabled     = running;
+  btnContinue.disabled = running || !sim || sim.is_halted() || !sim.is_at_breakpoint();
+  btnReset.disabled    = false;
+}
+
+// ── Sim lifecycle ──────────────────────────────────────────────────────────
+
+function stopLoop() {
+  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+}
+
+function buildSim() {
+  const s = new Simulator(editorEl.value);
+  const err = s.error();
+  if (err) {
+    const kind = s.error_kind();
+    const line = s.error_line();
+    const col  = s.error_col();
+
+    const kindStr = kind === 1 ? 'lex error'
+                  : kind === 2 ? 'parse error'
+                  : kind === 3 ? 'assemble error'
+                  : 'error';
+    const loc = line > 0 ? ` (line ${line}${col > 0 ? ':' + col : ''})` : '';
+    appendTerm(`${kindStr}${loc}: ${err}\n`, 'out-error');
+    setStatus('error', 'error');
+
+    if (line > 0) {
+      errLine = line;
+      positionHl(errLineHl, errLine);
+      scrollToLine(line);
+    }
+    return null;
+  }
+  // Transfer JS breakpoints to the new sim instance
+  for (const ln of breakpoints) s.set_breakpoint(ln);
+  return s;
+}
+
+// ── Run ────────────────────────────────────────────────────────────────────
+
+function doRun() {
+  stopLoop();
+  clearTerm();
+  errLine = 0; errLineHl.style.display = 'none';
+  sim = buildSim();
+  if (!sim) return;
+
+  setStatus('running…', 'running');
+  setButtons(true);
+  updateRegs();
+  updateGutter();
+  updateHighlights();
+  startRunLoop();
+}
+
+function startRunLoop() {
+  rafId = requestAnimationFrame(frame);
+}
+
+function frame() {
+  let result = STEP_RUNNING;
+  for (let i = 0; i < BATCH; i++) {
+    result = sim.step();
+    if (result !== STEP_RUNNING) break;
+  }
+  flushBuffers();
+  updateRegs();
+  updateGutter();
+  updateHighlights();
+
+  if (result === STEP_HALTED) {
+    onHalt();
+  } else if (result === STEP_BREAKPOINT) {
+    onBreakpoint();
+  } else {
+    rafId = requestAnimationFrame(frame);
+  }
+}
+
+function onHalt() {
+  rafId = null;
+  setStatus(`exit ${sim.exit_code()} · ${sim.steps()} steps`, 'halted');
+  setButtons(false);
+  curLineHl.style.display = 'none';
+  bpLineHl.style.display  = 'none';
+  execArrow.style.display = 'none';
+  updateGutter();
+}
+
+function onBreakpoint() {
+  rafId = null;
+  const line = sim.current_source_line();
+  setStatus(`breakpoint at line ${line} · ${sim.steps()} steps`, 'breakpoint');
+  setButtons(false);
+  scrollToLine(line);
+  updateGutter();
+  updateHighlights();
+}
+
+// ── Step ───────────────────────────────────────────────────────────────────
+
+function doStep() {
+  stopLoop();
+  if (!sim) {
+    clearTerm();
+    errLine = 0; errLineHl.style.display = 'none';
+    sim = buildSim();
+    if (!sim) return;
+    appendTerm('; assembled — press Step to execute\n', 'out-info');
+    const line = sim.current_source_line();
+    updateRegs();
+    updateGutter();
+    updateHighlights();
+    scrollToLine(line);
+    setStatus(`step 0 · line ${line}`, 'running');
+    setButtons(false);
+    return;
+  }
+  if (sim.is_halted()) return;
+
+  const result = sim.step();
+  flushBuffers();
+  updateRegs();
+  updateGutter();
+  updateHighlights();
+
+  if (result === STEP_HALTED) {
+    onHalt();
+  } else if (result === STEP_BREAKPOINT) {
+    onBreakpoint();
+  } else {
+    const line = sim.current_source_line();
+    scrollToLine(line);
+    setStatus(`step ${sim.steps()} · line ${line}`, 'running');
+    setButtons(false);
+  }
+}
+
+// ── Continue ───────────────────────────────────────────────────────────────
+
+function doContinue() {
+  if (!sim || sim.is_halted()) return;
+  stopLoop();
+  setStatus('running…', 'running');
+  setButtons(true);
+  startRunLoop();
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────
+
+function doReset() {
+  stopLoop();
+  sim = null;
+  errLine = 0;
+  clearTerm();
+  errLineHl.style.display = 'none';
+  curLineHl.style.display = 'none';
+  bpLineHl.style.display  = 'none';
+  execArrow.style.display = 'none';
+  updateRegs();
+  updateGutter();
+  setStatus('ready');
+  setButtons(false);
+  btnRun.disabled = false;
+}
+
+// ── Samples ────────────────────────────────────────────────────────────────
+
+sampleSel.addEventListener('change', () => {
+  const key = sampleSel.value;
+  if (key && SAMPLES[key]) {
+    doReset();
+    editorEl.value = SAMPLES[key];
+    sampleSel.value = '';
+    updateGutter();
+  }
+});
+
+// ── Event wiring ───────────────────────────────────────────────────────────
+
+btnRun.addEventListener('click', doRun);
+btnStep.addEventListener('click', doStep);
+btnContinue.addEventListener('click', doContinue);
+btnReset.addEventListener('click', doReset);
+
+editorEl.addEventListener('scroll', updateHighlights);
+editorEl.addEventListener('input', () => {
+  // Clear stale sim on edit so the next Run re-assembles
+  errLine = 0;
+  errLineHl.style.display = 'none';
+  updateGutter();
+});
+
+editorEl.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault(); doRun(); return;
+  }
+  if (e.key === 'F8') {
+    e.preventDefault(); doStep(); return;
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const { selectionStart: s, selectionEnd: e2, value } = editorEl;
+    editorEl.value = value.slice(0, s) + '    ' + value.slice(e2);
+    editorEl.selectionStart = editorEl.selectionEnd = s + 4;
+    updateGutter();
+  }
+});
+</script>
+</body>
+</html>

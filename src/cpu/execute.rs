@@ -647,6 +647,34 @@ pub fn execute(
             }
         }
 
+        Op::Nop => {}
+
+        Op::Leave => {
+            // mov rsp, rbp
+            let rbp_val = regs.read_named(Register::Rbp);
+            regs.write_named(Register::Rsp, rbp_val);
+            // pop rbp
+            let rsp = regs.read_named(Register::Rsp);
+            let val = mem.read_u64(rsp, rip)?;
+            regs.write_named(Register::Rsp, rsp.wrapping_add(8));
+            regs.write_named(Register::Rbp, val);
+        }
+
+        Op::Enter => {
+            // enter size, nesting_level — only nesting_level=0 supported
+            require!(2);
+            let size = read_operand(&ops[0], regs, mem, symbols, RegWidth::Qword)?;
+            // push rbp
+            let rsp = regs.read_named(Register::Rsp).wrapping_sub(8);
+            regs.write_named(Register::Rsp, rsp);
+            let rbp_val = regs.read_named(Register::Rbp);
+            mem.write_u64(rsp, rbp_val, rip)?;
+            // mov rbp, rsp
+            regs.write_named(Register::Rbp, rsp);
+            // sub rsp, size
+            regs.write_named(Register::Rsp, rsp.wrapping_sub(size));
+        }
+
         Op::Equ => {} // resolved at assembly time
     }
 

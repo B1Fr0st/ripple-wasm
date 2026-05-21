@@ -9,7 +9,15 @@ use crate::error::SimError;
 use crate::program::{DATA_BASE, Program, STACK_TOP, TEXT_BASE};
 use memory::Memory;
 use registers::Registers;
+use std::collections::HashSet;
 use syscall::SyscallIo;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StepKind {
+    Running,
+    Halted,
+    Breakpoint,
+}
 
 pub struct Cpu {
     pub regs: Registers,
@@ -25,6 +33,10 @@ pub struct Cpu {
     pub stdin: Vec<u8>,
     stdin_pos: usize,
     pub exit_code: i32,
+    // Breakpoints: set of source line numbers (1-indexed)
+    pub breakpoints: HashSet<usize>,
+    // True when we just fired a breakpoint; next step() skips the check once
+    pub at_breakpoint: bool,
 }
 
 impl Cpu {
@@ -49,6 +61,8 @@ impl Cpu {
             stdin: Vec::new(),
             stdin_pos: 0,
             exit_code: 0,
+            breakpoints: HashSet::new(),
+            at_breakpoint: false,
         })
     }
 
@@ -70,19 +84,39 @@ impl Cpu {
             })
     }
 
-    /// Execute one instruction. Returns true when the program has halted.
-    pub fn step(&mut self) -> Result<bool, SimError> {
+    /// Returns the source line number (1-indexed) of the instruction at the current rip.
+    pub fn current_source_line(&self) -> usize {
+        let rip = self.regs.rip;
+        if rip < TEXT_BASE {
+            return 0;
+        }
+        let idx = (rip - TEXT_BASE) as usize;
+        match self.prog.instructions.get(idx) {
+            Some(AsmLine::Instruction(i)) => i.line,
+            _ => 0,
+        }
+    }
+
+    /// Execute one instruction. Returns StepKind indicating execution state.
+    pub fn step(&mut self) -> Result<StepKind, SimError> {
         if self.halted {
-            return Ok(true);
+            return Ok(StepKind::Halted);
         }
 
         let instr = match self.fetch()? {
             AsmLine::Instruction(i) => i.clone(),
             AsmLine::Label(_) | AsmLine::Directive(_) => {
                 self.regs.rip += 1;
-                return Ok(false);
+                return Ok(StepKind::Running);
             }
         };
+
+        // Fire breakpoint on first arrival; skip check on re-entry
+        if !self.at_breakpoint && self.breakpoints.contains(&instr.line) {
+            self.at_breakpoint = true;
+            return Ok(StepKind::Breakpoint);
+        }
+        self.at_breakpoint = false;
 
         self.regs.rip += 1;
 
@@ -109,13 +143,12 @@ impl Cpu {
         )?;
         self.steps += 1;
 
-        // On native targets, flush buffers to real handles immediately for live output.
         #[cfg(not(target_arch = "wasm32"))]
         self.flush_native();
 
         if halt {
             self.halted = true;
-            return Ok(true);
+            return Ok(StepKind::Halted);
         }
 
         if self.steps >= self.max_steps {
@@ -125,19 +158,19 @@ impl Cpu {
             });
         }
 
-        Ok(false)
+        Ok(StepKind::Running)
     }
 
-    pub fn run(&mut self) -> Result<(), SimError> {
+    /// Run until halt or breakpoint. Returns why execution stopped.
+    pub fn run(&mut self) -> Result<StepKind, SimError> {
         loop {
-            if self.step()? {
-                break;
+            match self.step()? {
+                StepKind::Running => continue,
+                kind => return Ok(kind),
             }
         }
-        Ok(())
     }
 
-    /// Drain stdout/stderr buffers to real I/O handles (native only).
     #[cfg(not(target_arch = "wasm32"))]
     fn flush_native(&mut self) {
         use std::io::Write;
@@ -152,12 +185,10 @@ impl Cpu {
         }
     }
 
-    /// Take all buffered stdout since the last call (used by WASM host).
     pub fn take_stdout(&mut self) -> Vec<u8> {
         std::mem::take(&mut self.stdout)
     }
 
-    /// Take all buffered stderr since the last call (used by WASM host).
     pub fn take_stderr(&mut self) -> Vec<u8> {
         std::mem::take(&mut self.stderr)
     }

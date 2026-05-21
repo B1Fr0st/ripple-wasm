@@ -1,6 +1,5 @@
 /target
 /pkg
-index.html
 
 /fuzz/artifacts
 /fuzz/corpus

@@ -130,6 +130,10 @@ pub enum Op {
     Jno,
     // Syscall
     Syscall,
+    // Stack frame helpers
+    Nop,
+    Leave,
+    Enter,
     // Pseudo: define equ constant
     Equ,
 }

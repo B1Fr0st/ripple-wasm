@@ -168,6 +168,9 @@ impl Parser {
             "jo" => Some(Op::Jo),
             "jno" => Some(Op::Jno),
             "syscall" => Some(Op::Syscall),
+            "nop" => Some(Op::Nop),
+            "leave" => Some(Op::Leave),
+            "enter" => Some(Op::Enter),
             _ => None,
         }
     }

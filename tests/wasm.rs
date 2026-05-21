@@ -189,9 +189,9 @@ _start:
         sim.step();
     }
     assert!(sim.is_halted());
-    // Stepping past halt is a no-op.
-    let halted = sim.step();
-    assert!(halted);
+    // Stepping past halt is a no-op (returns 1 = halted).
+    let result = sim.step();
+    assert_ne!(result, 0);
 }
 
 #[wasm_bindgen_test]

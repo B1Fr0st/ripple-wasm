@@ -1,6 +1,6 @@
 # ripple
 
-x86_64 assembly simulator compiled to WebAssembly. Interprets a subset of NASM Intel syntax directly in the browser — no native binary, no server.
+x86_64 assembly simulator compiled to WebAssembly. Interprets a subset of NASM Intel syntax directly in the browser — no native binary, no server. 
 
 ## Goals
 

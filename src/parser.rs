@@ -203,6 +203,10 @@ impl Parser {
         let mut disp: i64 = 0;
         let mut label: Option<String> = None;
 
+        if matches!(self.peek(), Token::RBracket) {
+            return Err(SimError::Parse { line, msg: "empty memory operand '[]'".into() });
+        }
+
         // Parse terms until ']'
         loop {
             match self.peek().clone() {

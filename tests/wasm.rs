@@ -1,5 +1,5 @@
 #![cfg(target_arch = "wasm32")]
-use asm_sim::wasm::Simulator;
+use ripple_wasm::wasm::Simulator;
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_node_experimental);

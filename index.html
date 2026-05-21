@@ -684,28 +684,25 @@ function updateRegs() {
     return;
   }
 
-  const raw  = sim.dump_regs();
-  const vals = {};
-  for (const m of raw.matchAll(/(\w+)=(0x[0-9a-f]+|\d+|true|false)/g)) vals[m[1]] = m[2];
+  const r = sim.regs();
 
   for (const name of GP_NAMES) {
     const el = document.getElementById(`rv-${name}`);
     if (!el) continue;
-    const v      = vals[name] ?? '0x0';
-    const isZero = v === '0x0' || v === '0x0000000000000000';
-    el.textContent  = isZero ? '0x0' : v;
-    el.className    = isZero ? 'reg-val reg-zero' : 'reg-val';
+    const v      = r[name];
+    const isZero = v === 0n;
+    el.textContent = isZero ? '0x0' : '0x' + v.toString(16);
+    el.className   = isZero ? 'reg-val reg-zero' : 'reg-val';
   }
   for (const f of FLAG_NAMES) {
     const el = document.getElementById(`fv-${f}`);
     if (!el) continue;
-    const v      = vals[f] ?? '0';
-    el.textContent = v;
-    el.className   = v === '1' ? 'flag-1' : 'flag-0';
+    const v = r[f.toLowerCase()];
+    el.textContent = v ? '1' : '0';
+    el.className   = v ? 'flag-1' : 'flag-0';
   }
-  const rip   = vals['rip']   ?? '';
-  const steps = vals['steps'] ?? '';
-  ripRow.innerHTML = rip ? `rip=<span>${rip}</span> &nbsp; steps=<span>${steps}</span>` : '';
+  const rip = r.rip;
+  ripRow.innerHTML = `rip=<span>0x${rip.toString(16)}</span> &nbsp; steps=<span>${sim.steps()}</span>`;
 }
 
 // ── Status ─────────────────────────────────────────────────────────────────

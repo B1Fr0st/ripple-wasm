@@ -20,21 +20,20 @@
 #![no_main]
 
 use arbitrary::Unstructured;
+use asm_sim::{assembler::Assembler, cpu::Cpu, lexer::Lexer, parser::Parser};
 use libfuzzer_sys::fuzz_target;
-use asm_sim::{lexer::Lexer, parser::Parser, assembler::Assembler, cpu::Cpu};
 
 // ── Register pools ────────────────────────────────────────────────────────────
 
 // Safe general-purpose registers (rsp excluded to avoid stack corruption).
 const GP64: &[&str] = &[
-    "rax","rbx","rcx","rdx","rsi","rdi",
-    "r8","r9","r10","r11","r12","r13","r14","r15",
+    "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
 ];
 const GP32: &[&str] = &[
-    "eax","ebx","ecx","edx","esi","edi",
-    "r8d","r9d","r10d","r11d","r12d","r13d","r14d","r15d",
+    "eax", "ebx", "ecx", "edx", "esi", "edi", "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d",
+    "r15d",
 ];
-const GP8: &[&str] = &["al","bl","cl","dl","sil","dil"];
+const GP8: &[&str] = &["al", "bl", "cl", "dl", "sil", "dil"];
 
 // Shift count register.
 const SHIFT_REG: &str = "cl";
@@ -53,7 +52,7 @@ fn pick_label<'a>(u: &mut Unstructured, labels: &'a [String]) -> arbitrary::Resu
 // ── Instruction generator ─────────────────────────────────────────────────────
 
 fn gen_instr(u: &mut Unstructured, labels: &[String], out: &mut String) -> arbitrary::Result<()> {
-    let kind: u8 = u.int_in_range(0..=15)?;
+    let kind: u8 = u.int_in_range(0..=16)?;
     match kind {
         // mov reg64, reg64
         0 => {
@@ -75,21 +74,21 @@ fn gen_instr(u: &mut Unstructured, labels: &[String], out: &mut String) -> arbit
         }
         // alu reg64, reg64  (add sub and or xor)
         3 => {
-            let op  = *pick(u, &["add","sub","and","or","xor"])?;
+            let op = *pick(u, &["add", "sub", "and", "or", "xor"])?;
             let dst = *pick(u, GP64)?;
             let src = *pick(u, GP64)?;
             out.push_str(&format!("    {op} {dst}, {src}\n"));
         }
         // alu reg64, imm32
         4 => {
-            let op  = *pick(u, &["add","sub","and","or","xor"])?;
+            let op = *pick(u, &["add", "sub", "and", "or", "xor"])?;
             let dst = *pick(u, GP64)?;
             let imm: i32 = u.arbitrary()?;
             out.push_str(&format!("    {op} {dst}, {imm}\n"));
         }
         // inc / dec / neg / not
         5 => {
-            let op  = *pick(u, &["inc","dec","neg","not"])?;
+            let op = *pick(u, &["inc", "dec", "neg", "not"])?;
             let dst = *pick(u, GP64)?;
             out.push_str(&format!("    {op} {dst}\n"));
         }
@@ -108,14 +107,14 @@ fn gen_instr(u: &mut Unstructured, labels: &[String], out: &mut String) -> arbit
         }
         // shift reg64, imm8
         8 => {
-            let op    = *pick(u, &["shl","shr","sar","rol","ror"])?;
-            let dst   = *pick(u, GP64)?;
+            let op = *pick(u, &["shl", "shr", "sar", "rol", "ror"])?;
+            let dst = *pick(u, GP64)?;
             let count = u.int_in_range(1u8..=63)?;
             out.push_str(&format!("    {op} {dst}, {count}\n"));
         }
         // shift reg64, cl
         9 => {
-            let op  = *pick(u, &["shl","shr","sar"])?;
+            let op = *pick(u, &["shl", "shr", "sar"])?;
             let dst = *pick(u, GP64)?;
             out.push_str(&format!("    {op} {dst}, {SHIFT_REG}\n"));
         }
@@ -126,16 +125,21 @@ fn gen_instr(u: &mut Unstructured, labels: &[String], out: &mut String) -> arbit
         }
         // cmp + conditional jump to a known label
         11 => {
-            let jop = *pick(u, &["je","jne","jl","jle","jg","jge","js","jns","jc","jnc"])?;
-            let a   = *pick(u, GP64)?;
-            let b   = *pick(u, GP64)?;
+            let jop = *pick(
+                u,
+                &[
+                    "je", "jne", "jl", "jle", "jg", "jge", "js", "jns", "jc", "jnc",
+                ],
+            )?;
+            let a = *pick(u, GP64)?;
+            let b = *pick(u, GP64)?;
             let tgt = pick_label(u, labels)?;
             out.push_str(&format!("    cmp {a}, {b}\n    {jop} {tgt}\n"));
         }
         // test + conditional jump
         12 => {
-            let jop = *pick(u, &["jz","jnz"])?;
-            let a   = *pick(u, GP64)?;
+            let jop = *pick(u, &["jz", "jnz"])?;
+            let a = *pick(u, GP64)?;
             let tgt = pick_label(u, labels)?;
             out.push_str(&format!("    test {a}, {a}\n    {jop} {tgt}\n"));
         }
@@ -148,6 +152,10 @@ fn gen_instr(u: &mut Unstructured, labels: &[String], out: &mut String) -> arbit
         14 => {
             let tgt = pick_label(u, labels)?;
             out.push_str(&format!("    call {tgt}\n"));
+        }
+
+        15 => {
+            out.push_str(&format!("    nop\n"));
         }
         // xchg two registers
         _ => {
@@ -211,9 +219,17 @@ fuzz_target!(|data: &[u8]| {
     let mut u = Unstructured::new(data);
     let Ok(src) = generate(&mut u) else { return };
 
-    let Ok(tokens) = Lexer::new(&src).tokenize()          else { return };
-    let Ok(lines)  = Parser::new(tokens).parse()           else { return };
-    let Ok(prog)   = Assembler::new(lines).assemble()      else { return };
-    let Ok(mut cpu) = Cpu::new(prog, false, 50_000)        else { return };
+    let Ok(tokens) = Lexer::new(&src).tokenize() else {
+        return;
+    };
+    let Ok(lines) = Parser::new(tokens).parse() else {
+        return;
+    };
+    let Ok(prog) = Assembler::new(lines).assemble() else {
+        return;
+    };
+    let Ok(mut cpu) = Cpu::new(prog, false, 50_000) else {
+        return;
+    };
     let _ = cpu.run();
 });

@@ -1,5 +1,5 @@
 
-#Live Demo
+# Live Demo
 [Demo](https://b1fr0st.github.io/ripple-wasm/)
 
 # ripple
